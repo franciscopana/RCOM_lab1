@@ -1,3 +1,4 @@
 penguin-received.gif
 *.o
 *.DS_Store
+.vscode/
