@@ -25,7 +25,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     linkLayer.nRetransmissions = nTries;
     linkLayer.timeout = timeout;
 
-    // Open connection
+    // Establish connection
     int fd = llopen(linkLayer);
     if(fd < 0){
         printf("Error opening connection\n");
@@ -100,7 +100,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         free(startControlPacket);
         free(endControlPacket);
         
-        llclose(fd);
+        llclose(fd, 0, linkLayer);
     }
     
     // I am receiving
