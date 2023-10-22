@@ -245,21 +245,22 @@ int llopen(LinkLayer connectionParameters)
 int last_sent = 0;
 int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionParameters){
     // Construct information packet
-    unsigned char *packet = (unsigned char *) malloc(bufSize+6);
+    int packetSize = bufSize + 6;
+    unsigned char *packet = (unsigned char *) malloc(packetSize);
     packet[0] = FLAG;
     packet[1] = A_NORMAL;
     packet[2] = last_sent ? C_I1 : C_I0;
     packet[3] = packet[1] ^ packet[2];
-    memcpy(packet+4, buf, bufSize); //Does we need this here? because we are going to stuff it
+    // memcpy(packet+4, buf, bufSize); //Does we need this here? because we are going to stuff it
 
     unsigned char BCC2 = 0x00;
     int i = 4;
     for (unsigned int j = 0 ; i < bufSize ; j++) {
         // XOR operation
         BCC2 ^= buf[i]; 
-        //Stuffing
+        // Stuffing
         if(buf[i] == FLAG || buf[i] == ESCAPE){
-            packet = (unsigned char *) realloc(packet, bufSize+7);
+            packet = (unsigned char *) realloc(packet, ++packetSize);
             packet[i++] = ESCAPE;
             packet[i++] = buf[i] ^ 0x20;
         }else{
@@ -282,7 +283,7 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
         unsigned char cField = 0;
 
         while(!alarmRing && !received){
-            if(write(fd, packet, bufSize+6) < 0){
+            if(write(fd, packet, packetSize) < 0){
                 perror("write");
                 exit(-1);
             }
@@ -340,7 +341,6 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
                 }
             }
 
-
             attempts++;
         }
     
@@ -365,8 +365,6 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
 ////////////////////////////////////////////////
 int llread(unsigned char *packet)
 {
-    // TODO
-
     return 0;
 }
 
