@@ -109,7 +109,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         unsigned char *startCommandPacket = malloc(MAX_PAYLOAD);
 
         //receives control packet
-        int controlPacketSize = llread(startCommandPacket);
+        int controlPacketSize = llread(fd, startCommandPacket);
 
         //check if it is a start control packet
         if(startCommandPacket[0] != 0x02){
@@ -136,7 +136,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         //receives data packets
         while(1){
             unsigned char *packet = malloc(MAX_PAYLOAD);
-            int packetSize = llread(packet);
+            int packetSize = llread(fd, packet);
 
             //check if it is an end control packet
             if(packet[0] == 0x03){
