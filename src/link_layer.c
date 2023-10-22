@@ -240,11 +240,124 @@ int llopen(LinkLayer connectionParameters)
 ////////////////////////////////////////////////
 // LLWRITE
 ////////////////////////////////////////////////
-int llwrite(const unsigned char *buf, int bufSize)
-{
-    // TODO
 
-    return 0;
+// This variable changes between 0 and 1
+int last_sent = 0;
+int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionParameters){
+    // Construct information packet
+    unsigned char *packet = (unsigned char *) malloc(bufSize+6);
+    packet[0] = FLAG;
+    packet[1] = A_NORMAL;
+    packet[2] = last_sent ? C_I1 : C_I0;
+    packet[3] = packet[1] ^ packet[2];
+    memcpy(packet+4, buf, bufSize); //Does we need this here? because we are going to stuff it
+
+    unsigned char BCC2 = 0x00;
+    int i = 4;
+    for (unsigned int j = 0 ; i < bufSize ; j++) {
+        // XOR operation
+        BCC2 ^= buf[i]; 
+        //Stuffing
+        if(buf[i] == FLAG || buf[i] == ESCAPE){
+            packet = (unsigned char *) realloc(packet, bufSize+7);
+            packet[i++] = ESCAPE;
+            packet[i++] = buf[i] ^ 0x20;
+        }else{
+            packet[i++] = buf[i];
+        }
+    }
+    packet[i++] = BCC2;
+    packet[i++] = FLAG;
+
+    // Send packet
+    int attempts = 0;
+    while(attempts < connectionParameters.nRetransmissions){
+
+        // activate alarm
+        enable_alarm();
+        alarmRing = FALSE;
+        alarm(connectionParameters.timeout);
+
+        int received = FALSE;    
+        unsigned char cField = 0;
+
+        while(!alarmRing && !received){
+            if(write(fd, packet, bufSize+6) < 0){
+                perror("write");
+                exit(-1);
+            }
+            // Wait for RR
+            unsigned char byte = 0;
+            enum State_SU state = START;
+            while(state != STOP){
+                if(read(fd, &byte, 1) < 0){
+                    perror("read");
+                    exit(-1);
+                }
+
+                switch(state){
+                    case START:
+                        if(byte == FLAG){
+                            state = FLAG_RCV;
+                        }
+                        break;
+                    case FLAG_RCV:
+                        if(byte == A_NORMAL){
+                            state = A_RCV;
+                        }else if(byte != FLAG){
+                            state = START;
+                        }
+                        break;
+                    case A_RCV:
+                        if(byte == C_RR0 || byte == C_RR1 || byte == C_REJ0 || byte == C_REJ1 || byte == C_DISC){
+                            state = C_RCV;
+                            cField = byte;
+                        }else if(byte == FLAG){
+                            state = FLAG_RCV;
+                        }else{
+                            state = START;
+                        }
+                        break;
+                    case C_RCV:
+                        if(byte == A_NORMAL ^ cField){
+                            state = BCC_OK;
+                        }else if(byte == FLAG){
+                            state = FLAG_RCV;
+                        }else{
+                            state = START;
+                        }
+                        break;
+                    case BCC_OK:
+                        if(byte == FLAG){
+                            state = STOP;
+                            received = TRUE;
+                        }else{
+                            state = START;
+                        }
+                        break;
+                    default:
+                        break;
+                }
+            }
+
+
+            attempts++;
+        }
+    
+        // TODO: Verificar isto
+        if(received){
+            if(cField == C_RR0 || cField == C_RR1){
+                last_sent = !last_sent;
+                return bufSize;
+            }else if(cField == C_REJ0 || cField == C_REJ1){
+                attempts = 0;
+            }else if(cField == C_DISC){
+                return -1;
+            }
+        }
+    }
+
+    return -1;
 }
 
 ////////////////////////////////////////////////
