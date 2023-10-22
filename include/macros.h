@@ -10,5 +10,6 @@
 #define C_REJ1 0x81
 #define C_I0 0x00
 #define C_I1 0x40
+#define ESCAPE 0x7D
 
-enum State_SU {START, FLAG_RCV, A_RCV, C_RCV, BCC_OK, STOP};
+enum LLState {START, FLAG_RCV, A_RCV, C_RCV, RECEIVING_DATA, STUFFING, BCC_OK, STOP};
