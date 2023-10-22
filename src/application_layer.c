@@ -68,7 +68,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         fclose(file);
 
         //llwrite control packet
-        llwrite(startControlPacket, controlPacketSize);
+        llwrite(fd, startControlPacket, controlPacketSize, linkLayer);
 
         //loop buffer and send data packets
         long int bytesSent = 0;
@@ -84,7 +84,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             packet[1] = (bytesToSend >> 8) & 0xFF;
             packet[2] = bytesToSend & 0xFF;
             memcpy(packet + 3, fileBuffer + bytesSent, bytesToSend);
-            llwrite(packet, bytesToSend + 3);
+            llwrite(fd, packet, bytesToSend + 3, linkLayer);
             bytesSent += bytesToSend;
             free(packet);
         }
@@ -96,7 +96,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         endControlPacket[0] = 0x03; // control field end
 
         //llwrite control packet
-        llwrite(endControlPacket, controlPacketSize);
+        llwrite(fd, endControlPacket, controlPacketSize, linkLayer);
         free(startControlPacket);
         free(endControlPacket);
         
