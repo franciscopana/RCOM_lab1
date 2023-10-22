@@ -98,7 +98,7 @@ int llopen(LinkLayer connectionParameters)
         set_packet[3] = A_NORMAL ^ C_SET;
         set_packet[4] = FLAG;
 
-        enum State_SU state = START;
+        enum LLState state = START;
         int attempts = 0;
         while(attempts < connectionParameters.nRetransmissions && state != STOP){
             // send set
@@ -170,7 +170,7 @@ int llopen(LinkLayer connectionParameters)
 
         // wait for fully process SET
         unsigned char byte;
-        enum State_SU state = START;
+        enum LLState state = START;
         while(state != STOP){
             if(read(fd, &byte, 1) < 0){
                 perror("read");
@@ -289,7 +289,7 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
             }
             // Wait for RR
             unsigned char byte = 0;
-            enum State_SU state = START;
+            enum LLState state = START;
             while(state != STOP){
                 if(read(fd, &byte, 1) < 0){
                     perror("read");
@@ -363,9 +363,118 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
 ////////////////////////////////////////////////
 // LLREAD
 ////////////////////////////////////////////////
-int llread(unsigned char *packet)
+int llread(int fd, unsigned char *packet)
 {
-    return 0;
+    // RECEIVE PACKET I: F A C BCC1(A xor C) DATA BCC2(DATA0 xor DATA1 xor...) F
+    // DATA is a sequence of bytes
+
+    unsigned char byte, i_n;
+    int packet_position = 0;
+    enum LLState state = START;
+
+    while (state != STOP){
+        if(read(fd, &byte, 1) > 0){
+            switch(state){
+                case START:
+                    if(byte == FLAG){
+                        state = FLAG_RCV;
+                    }
+                    break;
+                case FLAG_RCV:
+                    if(byte == A_NORMAL){
+                        state = A_RCV;
+                    }else if(byte != FLAG){
+                        state = START;
+                    }
+                    break;
+                case A_RCV:
+                    if(byte == C_I0){
+                        state = C_RCV;
+                        i_n = 0;
+                    }else if(byte == C_I1){
+                        state = C_RCV;
+                        i_n = 1;
+                    }else if(byte == FLAG){
+                        state = FLAG_RCV;
+                    }else{
+                        state = START;
+                    }
+                    break;
+                case C_RCV:
+                    if(i_n == 0 && byte == A_NORMAL ^ C_I0){
+                        state = RECEIVING_DATA;
+                    }else if(i_n == 1 && byte == A_NORMAL ^ C_I1){
+                        state = RECEIVING_DATA;
+                    }else if(byte == FLAG){
+                        state = FLAG_RCV;
+                    }else{
+                        state = START;
+                    }
+                    break;
+                case RECEIVING_DATA:
+                    if(byte == ESCAPE){
+                        state = DESTUFFING;
+                    }else if(byte == FLAG){
+                        unsigned char bcc2 = packet[--packet_position];
+                        packet[packet_position] = '\0';
+                        
+                        int j = 0;
+                        unsigned char xor = 0x00;
+                        for(int j = 0; j < packet_position; j++){
+                            xor ^= packet[j];
+                        }
+
+                        unsigned char supervision_packet[5] = {0};
+                        supervision_packet[0] = FLAG;
+                        supervision_packet[1] = A_NORMAL;
+                        supervision_packet[4] = FLAG;
+
+                        if(xor == bcc2){
+                            state = STOP;
+                            // send RR (i_n+1)%2
+                            supervision_packet[2] = i_n == 0 ? C_RR1 : C_RR0;
+                            supervision_packet[3] = A_NORMAL ^ supervision_packet[2];
+                            write(fd, supervision_packet, 5);
+                            return packet_position;
+                        }else{
+                            // send REJ (i_n)
+                            supervision_packet[2] = i_n == 0 ? C_REJ0 : C_REJ1;
+                            supervision_packet[3] = A_NORMAL ^ supervision_packet[2];
+                            write(fd, supervision_packet, 5);
+                        }
+                    }else{
+                        packet[packet_position++] = byte;
+                    }
+                    break;
+                case DESTUFFING:
+
+                    /*
+                    STUFFING:
+                    byte FLAG(0x7e) replaced for ESCAPE(0x7d) followed by 0x5e
+                    byte ESCAPE(0x7d) replaced for ESCAPE(0x7d) followed by 0x5d
+
+                    Here we want to do the reverse process
+
+                                 p_pos   byte        
+                    | 0X7D | -> | 0x7d | 0x5d |
+                    | 0X7E | -> | 0x7d | 0x5e |
+                    */
+
+                    if(byte == 0x5e){
+                        packet[packet_position++] = FLAG;
+                    }else if(byte == 0x5d){
+                        packet[packet_position++] = ESCAPE;
+                    }else{
+                        packet[packet_position++] = byte;
+                    }
+                    state = RECEIVING_DATA;
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+    return -1;
 }
 
 ////////////////////////////////////////////////
@@ -382,7 +491,7 @@ int llclose(int fd, int showStatistics, LinkLayer connectionParameters)
     disc_packet[3] = A_NORMAL ^ C_DISC;
     disc_packet[4] = FLAG;
 
-    enum State_SU state = START;
+    enum LLState state = START;
     int attempts = 0;
     while(attempts < connectionParameters.nRetransmissions && state != STOP){
         // send disc
