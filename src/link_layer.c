@@ -141,7 +141,7 @@ int llopen(LinkLayer connectionParameters)
                         }
                         break;
                     case C_RCV:
-                        if(byte == A_NORMAL ^ C_UA){
+                        if(byte == (A_NORMAL ^ C_UA)){
                             state = BCC_OK;
                         }else if(byte == FLAG){
                             state = FLAG_RCV;
@@ -200,7 +200,7 @@ int llopen(LinkLayer connectionParameters)
                     }
                     break;
                 case C_RCV:
-                    if(byte == A_NORMAL ^ C_SET){
+                    if(byte == (A_NORMAL ^ C_SET)){
                         state = BCC_OK;
                     }else if(byte == FLAG){
                         state = FLAG_RCV;
@@ -320,7 +320,7 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
                         }
                         break;
                     case C_RCV:
-                        if(byte == A_NORMAL ^ cField){
+                        if(byte == (A_NORMAL ^ cField)){
                             state = BCC_OK;
                         }else if(byte == FLAG){
                             state = FLAG_RCV;
@@ -401,9 +401,9 @@ int llread(int fd, unsigned char *packet)
                     }
                     break;
                 case C_RCV:
-                    if(i_n == 0 && byte == A_NORMAL ^ C_I0){
+                    if(i_n == 0 && byte == (A_NORMAL ^ C_I0)){
                         state = RECEIVING_DATA;
-                    }else if(i_n == 1 && byte == A_NORMAL ^ C_I1){
+                    }else if(i_n == 1 && byte == (A_NORMAL ^ C_I1)){
                         state = RECEIVING_DATA;
                     }else if(byte == FLAG){
                         state = FLAG_RCV;
@@ -534,7 +534,7 @@ int llclose(int fd, int showStatistics, LinkLayer connectionParameters)
                     }
                     break;
                 case C_RCV:
-                    if(byte == A_NORMAL ^ C_DISC){
+                    if(byte == (A_NORMAL ^ C_DISC)){
                         state = BCC_OK;
                     }else if(byte == FLAG){
                         state = FLAG_RCV;

@@ -111,6 +111,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         //receives control packet
         int controlPacketSize = llread(fd, startCommandPacket);
 
+        printf("controlPacketSize: %d\n", controlPacketSize);
+
         //check if it is a start control packet
         if(startCommandPacket[0] != 0x02){
             printf("Invalid control packet\n");
@@ -150,7 +152,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             }
 
             //check if it is the expected packet
-            if(packet[1] != (fileBufferSize >> 8) & 0xFF || packet[2] != fileBufferSize & 0xFF){
+            if(packet[1] != ((fileBufferSize >> 8) & 0xFF) || packet[2] != ((fileBufferSize & 0xFF))){
                 printf("Invalid packet\n");
                 exit(1);
             }
