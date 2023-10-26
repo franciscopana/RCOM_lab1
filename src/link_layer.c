@@ -19,7 +19,6 @@ int alarmRing = FALSE;
 int alarmCount = 0;
 struct termios oldtio;
 
-
 // Alarm function handler
 void alarmHandler(int signal){
     alarmRing = TRUE;
@@ -164,6 +163,7 @@ int llopen(LinkLayer connectionParameters)
         }
         disable_alarm();
         if(state != STOP) return -1;
+        printf("Connection established\n");
         return fd;
 
     }else if(connectionParameters.role == LlRx){
@@ -244,6 +244,7 @@ int llopen(LinkLayer connectionParameters)
 // This variable changes between 0 and 1
 int last_sent = 0;
 int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionParameters){
+
     // Construct information packet
     int packetSize = bufSize + 6;
     unsigned char *packet = (unsigned char *) malloc(packetSize);
@@ -255,20 +256,28 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
 
     unsigned char BCC2 = 0x00;
     int i = 4;
-    for (unsigned int j = 0 ; i < bufSize ; j++) {
+    // print buffer size
+    printf("bufSize: %d\n", bufSize);
+    for (unsigned int j = 0 ; j < bufSize ; j++) {
+        //print current byte
+        //printf("current byte: %x\n", buf[j]);
+
         // XOR operation
-        BCC2 ^= buf[i]; 
+        BCC2 ^= buf[j]; 
         // Stuffing
-        if(buf[i] == FLAG || buf[i] == ESCAPE){
+        if(buf[j] == FLAG || buf[j] == ESCAPE){
+            printf("Stuffing\n");
             packet = (unsigned char *) realloc(packet, ++packetSize);
             packet[i++] = ESCAPE;
-            packet[i++] = buf[i] ^ 0x20;
+            packet[i++] = buf[j] ^ 0x20;
         }else{
-            packet[i++] = buf[i];
+            packet[i++] = buf[j];
         }
     }
     packet[i++] = BCC2;
     packet[i++] = FLAG;
+
+    printf("packetSize: %d\n", packetSize);
 
     // Send packet
     int attempts = 0;
@@ -363,8 +372,7 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
 ////////////////////////////////////////////////
 // LLREAD
 ////////////////////////////////////////////////
-int llread(int fd, unsigned char *packet)
-{
+int llread(int fd, unsigned char *packet){
     // RECEIVE PACKET I: F A C BCC1(A xor C) DATA BCC2(DATA0 xor DATA1 xor...) F
     // DATA is a sequence of bytes
 
@@ -376,11 +384,13 @@ int llread(int fd, unsigned char *packet)
         if(read(fd, &byte, 1) > 0){
             switch(state){
                 case START:
+                    printf("Start\n");
                     if(byte == FLAG){
                         state = FLAG_RCV;
                     }
                     break;
                 case FLAG_RCV:
+                    printf("flag_rcv\n");
                     if(byte == A_NORMAL){
                         state = A_RCV;
                     }else if(byte != FLAG){
@@ -388,6 +398,7 @@ int llread(int fd, unsigned char *packet)
                     }
                     break;
                 case A_RCV:
+                    printf("a_rcv\n");
                     if(byte == C_I0){
                         state = C_RCV;
                         i_n = 0;
@@ -401,6 +412,7 @@ int llread(int fd, unsigned char *packet)
                     }
                     break;
                 case C_RCV:
+                    printf("c_rcv\n");
                     if(i_n == 0 && byte == (A_NORMAL ^ C_I0)){
                         state = RECEIVING_DATA;
                     }else if(i_n == 1 && byte == (A_NORMAL ^ C_I1)){
@@ -412,6 +424,7 @@ int llread(int fd, unsigned char *packet)
                     }
                     break;
                 case RECEIVING_DATA:
+                    //printf("RECEIVING_DATA\n");
                     if(byte == ESCAPE){
                         state = DESTUFFING;
                     }else if(byte == FLAG){
@@ -447,9 +460,9 @@ int llread(int fd, unsigned char *packet)
                     }
                     break;
                 case DESTUFFING:
-
+                    printf("DESTUFFING\n");
                     /*
-                    STUFFING:
+                    STUFFING:qwdx
                     byte FLAG(0x7e) replaced for ESCAPE(0x7d) followed by 0x5e
                     byte ESCAPE(0x7d) replaced for ESCAPE(0x7d) followed by 0x5d
 
@@ -482,30 +495,163 @@ int llread(int fd, unsigned char *packet)
 ////////////////////////////////////////////////
 int llclose(int fd, int showStatistics, LinkLayer connectionParameters)
 {
-    // transmitter sends DISC and waits for DISC
-    // transmitter sends UA
-    unsigned char disc_packet[5] = {0};
-    disc_packet[0] = FLAG;
-    disc_packet[1] = A_NORMAL;
-    disc_packet[2] = C_DISC;
-    disc_packet[3] = A_NORMAL ^ C_DISC;
-    disc_packet[4] = FLAG;
 
-    enum LLState state = START;
-    int attempts = 0;
-    while(attempts < connectionParameters.nRetransmissions && state != STOP){
-        // send disc
-        if(write(fd, disc_packet, 5) < 0){
+    if(connectionParameters.role == LlTx){
+        printf("Entered llclose on transmitter\n");
+        // transmitter sends DISC and waits for DISC then sends UA
+
+        unsigned char disc_packet[5] = {0};
+        disc_packet[0] = FLAG;
+        disc_packet[1] = A_NORMAL;
+        disc_packet[2] = C_DISC;
+        disc_packet[3] = A_NORMAL ^ C_DISC;
+        disc_packet[4] = FLAG;
+
+        enum LLState state = START;
+        int attempts = 0;
+        while(attempts < connectionParameters.nRetransmissions && state != STOP){
+            //print the attempt
+            printf("attempt: %d\n", attempts);
+            // send disc
+            if(write(fd, disc_packet, 5) < 0){
+                perror("write");
+                exit(-1);
+            }
+            // activate alarm
+            enable_alarm();
+            alarmRing = FALSE;
+            alarm(connectionParameters.timeout);
+            
+            while(!alarmRing && state != STOP){
+                unsigned char byte;
+                if(read(fd, &byte, 1) < 0){
+                    perror("read");
+                    exit(-1);
+                }
+
+                switch(state){
+                    case START:
+                        if(byte == FLAG){
+                            state = FLAG_RCV;
+                        }
+                        break;
+                    case FLAG_RCV:
+                        if(byte == A_REVERSE){
+                            state = A_RCV;
+                        }else if(byte != FLAG){
+                            state = START;
+                        }
+                        break;
+                    case A_RCV:
+                        if(byte == C_DISC){
+                            state = C_RCV;
+                        }else if(byte == FLAG){
+                            state = FLAG_RCV;
+                        }else{
+                            state = START;
+                        }
+                        break;
+                    case C_RCV:
+                        if(byte == (A_REVERSE ^ C_DISC)){
+                            state = BCC_OK;
+                        }else if(byte == FLAG){
+                            state = FLAG_RCV;
+                        }else{
+                            state = START;
+                        }
+                        break;
+                    case BCC_OK:
+                        if(byte == FLAG){
+                            state = STOP;
+                        }else{
+                            state = START;
+                        }
+                        break;
+                    default:
+                        break;
+                }
+            } 
+            attempts++;
+        }
+        disable_alarm();
+        if(state != STOP) return -1;
+
+        // wait for fully process DISC from receiver
+        state = START;
+        char byte;
+        while(state != STOP){
+            if(read(fd, &byte, 1) < 0){
+                perror("read");
+                exit(-1);
+            }
+
+            switch(state){
+                case START:
+                    if(byte == FLAG){
+                        state = FLAG_RCV;
+                    }
+                    break;
+                case FLAG_RCV:
+                    if(byte == A_REVERSE){
+                        state = A_RCV;
+                    }else if(byte != FLAG){
+                        state = START;
+                    }
+                    break;
+                case A_RCV:
+                    if(byte == C_DISC){
+                        state = C_RCV;
+                    }else if(byte == FLAG){
+                        state = FLAG_RCV;
+                    }else{
+                        state = START;
+                    }
+                    break;
+                case C_RCV:
+                    if(byte == (A_REVERSE ^ C_DISC)){
+                        state = BCC_OK;
+                    }else if(byte == FLAG){
+                        state = FLAG_RCV;
+                    }else{
+                        state = START;
+                    }
+                    break;
+                case BCC_OK:
+                    if(byte == FLAG){
+                        state = STOP;
+                    }else{
+                        state = START;
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        printf("Transmitter received DISC from Receiver\n");
+
+        //send UA
+        unsigned char ua_packet[5] = {0};
+        ua_packet[0] = FLAG;
+        ua_packet[1] = A_NORMAL;
+        ua_packet[2] = C_UA;
+        ua_packet[3] = A_NORMAL ^ C_UA;
+        ua_packet[4] = FLAG;
+
+        if(write(fd, ua_packet, 5) < 0){
             perror("write");
             exit(-1);
         }
-        // activate alarm
-        enable_alarm();
-        alarmRing = FALSE;
-        alarm(connectionParameters.timeout);
-        
-        while(!alarmRing && state != STOP){
-            unsigned char byte;
+        printf("Transmitter sent UA\n");
+    }
+    else{
+        // receiver waits for DISC and sends DISC then waits for UA
+        printf("Entered llclose on receiver\n");
+        // wait for fully process DISC
+        unsigned char byte;
+        enum LLState state = START;
+        while(state != STOP){
+            //printf("waiting\n");
             if(read(fd, &byte, 1) < 0){
                 perror("read");
                 exit(-1);
@@ -552,31 +698,94 @@ int llclose(int fd, int showStatistics, LinkLayer connectionParameters)
                 default:
                     break;
             }
-        } 
-        attempts++;
+        }
+
+        printf("Receiver received DISC from Transmitter\n");
+        // send DISC with timeout and retransmission mechanism waiting for UA
+        unsigned char disc_packet[5] = {0};
+        disc_packet[0] = FLAG;
+        disc_packet[1] = A_REVERSE;
+        disc_packet[2] = C_DISC;
+        disc_packet[3] = A_REVERSE ^ C_DISC;
+        disc_packet[4] = FLAG;
+
+        state = START;
+        int attempts = 0;
+        while(attempts < connectionParameters.nRetransmissions && state != STOP){
+            // send disc
+            if(write(fd, disc_packet, 5) < 0){
+                perror("write");
+                exit(-1);
+            }
+            // activate alarm
+            enable_alarm();
+            alarmRing = FALSE;
+            alarm(connectionParameters.timeout);
+            
+            while(!alarmRing && state != STOP){
+                unsigned char byte;
+                if(read(fd, &byte, 1) < 0){
+                    perror("read");
+                    exit(-1);
+                }
+
+                switch(state){
+                    case START:
+                        if(byte == FLAG){
+                            state = FLAG_RCV;
+                        }
+                        break;
+                    case FLAG_RCV:
+                        if(byte == A_NORMAL){
+                            state = A_RCV;
+                        }else if(byte != FLAG){
+                            state = START;
+                        }
+                        break;
+                    case A_RCV:
+                        if(byte == C_UA){
+                            state = C_RCV;
+                        }else if(byte == FLAG){
+                            state = FLAG_RCV;
+                        }else{
+                            state = START;
+                        }
+                        break;
+                    case C_RCV:
+                        if(byte == (A_NORMAL ^ C_UA)){
+                            state = BCC_OK;
+                        }else if(byte == FLAG){
+                            state = FLAG_RCV;
+                        }else{
+                            state = START;
+                        }
+                        break;
+                    case BCC_OK:
+                        if(byte == FLAG){
+                            state = STOP;
+                        }else{
+                            state = START;
+                        }
+                        break;
+                    default:
+                        break;
+                }
+            }
+            attempts++;
+        }
+        disable_alarm();
+        if(state != STOP) return -1;
+
+        printf("Receiver received UA from Transmitter\n");
     }
-    disable_alarm();
-    if(state != STOP) return -1;
 
-    //send UA
-    unsigned char ua_packet[5] = {0};
-    ua_packet[0] = FLAG;
-    ua_packet[1] = A_NORMAL;
-    ua_packet[2] = C_UA;
-    ua_packet[3] = A_NORMAL ^ C_UA;
-    ua_packet[4] = FLAG;
-
-    if(write(fd, ua_packet, 5) < 0){
-        perror("write");
-        exit(-1);
-    }
-
-    //TODO: Restore things
-    // close serial port
+    // Restore things back
     if (tcsetattr(fd, TCSANOW, &oldtio) == -1){
         perror("tcsetattr");
         exit(-1);
     }
 
+    close(fd);
+    printf("Connection closed\n");
     return 1;
 }

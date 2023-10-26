@@ -41,6 +41,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         fseek(file, 0, SEEK_END);
         long int fileSize = ftell(file);
         fseek(file, 0, SEEK_SET);
+        printf("File size: %ld\n", fileSize);
 
         // build control packet start
         // get the number of bytes to represent the file size
@@ -68,25 +69,28 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         fclose(file);
 
         //llwrite control packet
+        printf("controlPacketSize: %d\n", controlPacketSize);
         llwrite(fd, startControlPacket, controlPacketSize, linkLayer);
 
         //loop buffer and send data packets
         long int bytesSent = 0;
         //TODO: malloc can be here, so we don't have to malloc everytime
         while(bytesSent < fileSize){
-            long int bytesToSend = fileSize - bytesSent;
+            unsigned long  bytesToSend = fileSize - bytesSent;
             if(bytesToSend > MAX_PAYLOAD){
                 bytesToSend = MAX_PAYLOAD;
             }
 
             unsigned char* packet = malloc(bytesToSend + 3);
             packet[0] = 0x01; // control field data
+            printf("bytesToSend: %ld\n", bytesToSend);
             packet[1] = (bytesToSend >> 8) & 0xFF;
             packet[2] = bytesToSend & 0xFF;
             memcpy(packet + 3, fileBuffer + bytesSent, bytesToSend);
             llwrite(fd, packet, bytesToSend + 3, linkLayer);
             bytesSent += bytesToSend;
             free(packet);
+            printf("bytesSent2: %ld\n", bytesSent);
         }
         free(fileBuffer);
 
@@ -111,8 +115,6 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         //receives control packet
         int controlPacketSize = llread(fd, startCommandPacket);
 
-        printf("controlPacketSize: %d\n", controlPacketSize);
-
         //check if it is a start control packet
         if(startCommandPacket[0] != 0x02){
             printf("Invalid control packet\n");
@@ -125,49 +127,74 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         for(int i = 0; i < L1; i++){
             fileSize |= startCommandPacket[3 + i] << (8 * i);
         }
+        printf("File size: %ld\n", fileSize);
         
         //get filename
         unsigned char L2 = startCommandPacket[3 + L1 + 1];
         char *filename = malloc(L2);
         memcpy(filename, startCommandPacket + 5 + L1, L2);
+        printf("Filename: %s\n", filename);
 
-        //create a buffer to store the file
-        unsigned char *fileBuffer = malloc(fileSize);
-        int fileBufferSize = 0;
+        char *appendToFilename = "-received";
+        size_t originalLength = strlen(filename);
+        size_t appendLength = strlen(appendToFilename);
+        size_t newFilenameLength = originalLength + appendLength;
+        char *newFilename = (char *)malloc(newFilenameLength + 1);
+        strcpy(newFilename, filename);
+        char* dot = strrchr(newFilename, '.');
+        if(dot != NULL){
+            size_t position = dot - newFilename;
+            memmove(newFilename + position + appendLength, dot, originalLength - position);
+            memcpy(newFilename + position, appendToFilename, appendLength);
+        }else{
+            strcat(newFilename, appendToFilename);
+        }
+        printf("New filename: %s\n", newFilename);
 
+        //create file to append mode and clear its content
+        FILE *file = fopen(newFilename, "a");
+
+        int bytesWritten = 0;
         //receives data packets
         while(1){
-            unsigned char *packet = malloc(MAX_PAYLOAD);
+            unsigned char *packet = malloc(MAX_PAYLOAD + 3);
             int packetSize = llread(fd, packet);
+            realloc(packet, packetSize);
 
             //check if it is an end control packet
             if(packet[0] == 0x03){
+                printf("End control packet received\n");
                 break;
             }
 
             //check if it is a data packet
             if(packet[0] != 0x01){
-                printf("Invalid packet\n");
+                printf("Invalid packet1\n");
                 exit(1);
             }
 
-            //check if it is the expected packet
-            if(packet[1] != ((fileBufferSize >> 8) & 0xFF) || packet[2] != ((fileBufferSize & 0xFF))){
-                printf("Invalid packet\n");
-                exit(1);
-            }
+            // packet: C - L2 - L1 - P1 ... Pk
+            // C = 0x01, L2L1 = k
 
-            //copy data to buffer
-            memcpy(fileBuffer + fileBufferSize, packet + 3, packetSize - 3);
-            fileBufferSize += packetSize - 3;
+            unsigned char L2 = packet[1];
+            unsigned char L1 = packet[2];
+            unsigned int k = (L2 << 8) | L1;
+
+            printf("Data Package received\n");
+            // write to file
+            printf("bytesWritten1: %d\n", bytesWritten);
+            // append fwrite(packet + 3, k, 1, file + bytesWritten);
+            fwrite(packet + 3, k, 1, file);
+            bytesWritten += k;
             free(packet);
         }
+        printf("llclose\n");
+        llclose(fd, 0, linkLayer);
 
-        //TODO:
-        //Write buffer to a new file with the name filename
-
+        //Free memory
+        free(newFilename);
         free(startCommandPacket);
-        free(fileBuffer);
-        free(filename);
+        fclose(file);
+
     }
 }
