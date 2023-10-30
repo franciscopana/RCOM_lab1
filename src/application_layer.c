@@ -37,6 +37,11 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         //open file
         FILE *file = fopen(filename, "r");
 
+        if(file == NULL){
+            printf("File %s does not exist\n", filename);
+            exit(1);
+        }
+
         //get file size
         fseek(file, 0, SEEK_END);
         long int fileSize = ftell(file);

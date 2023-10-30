@@ -278,7 +278,16 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
             packet[i++] = buf[j];
         }
     }
-    packet[i++] = BCC2;
+
+    // BCC2 Stuffing
+    if(BCC2 == FLAG || BCC2 == ESCAPE){
+        printf("Stuffing\n");
+        packet = (unsigned char *) realloc(packet, ++packetSize);
+        packet[i++] = ESCAPE;
+        packet[i++] = BCC2 ^ 0x20;
+    }else{
+        packet[i++] = BCC2;
+    }
     packet[i++] = FLAG;
 
     printf("packetSize: %d\n", packetSize);

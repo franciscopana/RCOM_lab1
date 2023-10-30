@@ -18,8 +18,17 @@ RX_SERIAL_PORT = /dev/ttyS11
 #TX_SERIAL_PORT = /dev/ttyS10
 #RX_SERIAL_PORT = /dev/ttyS11
 
-TX_FILE = penguin.gif
-RX_FILE = penguin-received.gif
+# Pinguin
+#TX_FILE = penguin.gif
+#RX_FILE = penguin-received.gif
+
+# Cão
+TX_FILE = cao.jpg
+RX_FILE = cao-received.jpg
+
+# NI
+#TX_FILE = ni.svg
+#RX_FILE = ni-received.svg
 
 # Targets
 .PHONY: all
