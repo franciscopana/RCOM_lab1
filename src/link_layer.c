@@ -8,6 +8,10 @@
 #include <sys/stat.h>
 #include <termios.h>
 #include <unistd.h>
+#include <signal.h>
+#include <unistd.h>
+#include <signal.h>
+
 #include "link_layer.h"
 #include "macros.h"
 
