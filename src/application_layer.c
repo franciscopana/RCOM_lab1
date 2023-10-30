@@ -164,6 +164,14 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         while(1){
             unsigned char *packet = malloc(MAX_PAYLOAD + 3);
             int packetSize = llread(fd, packet);
+            if(packetSize < 0){
+                printf("Error receiving packet\n");
+                exit(1);
+            }else if(packetSize == 0){
+                free(packet);
+                continue;
+            }
+
             realloc(packet, packetSize);
 
             //check if it is an end control packet

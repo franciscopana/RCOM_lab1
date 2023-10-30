@@ -245,27 +245,23 @@ int llopen(LinkLayer connectionParameters)
 // LLWRITE
 ////////////////////////////////////////////////
 
-// This variable changes between 0 and 1
-int last_sent = 0;
 int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionParameters){
+
+    static int sequenceNumber = 0;
 
     // Construct information packet
     int packetSize = bufSize + 6;
     unsigned char *packet = (unsigned char *) malloc(packetSize);
     packet[0] = FLAG;
     packet[1] = A_NORMAL;
-    packet[2] = last_sent ? C_I1 : C_I0;
+    packet[2] = sequenceNumber == 0 ? C_I0 : C_I1;
     packet[3] = packet[1] ^ packet[2];
-    // memcpy(packet+4, buf, bufSize); //Does we need this here? because we are going to stuff it
 
     unsigned char BCC2 = 0x00;
     int i = 4;
     // print buffer size
     printf("bufSize: %d\n", bufSize);
     for (unsigned int j = 0 ; j < bufSize ; j++) {
-        //print current byte
-        //printf("current byte: %x\n", buf[j]);
-
         // XOR operation
         BCC2 ^= buf[j]; 
         // Stuffing
@@ -366,13 +362,13 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
             attempts++;
         }
     
-        // TODO: Verificar isto
         if(received){
             if(cField == C_RR0 || cField == C_RR1){
-                last_sent = !last_sent;
+                sequenceNumber = (sequenceNumber+1) % 2;
                 return bufSize;
             }else if(cField == C_REJ0 || cField == C_REJ1){
-                attempts = 0;
+                //atempts = 0;
+                attempts--;
             }else if(cField == C_DISC){
                 return -1;
             }
@@ -389,7 +385,9 @@ int llread(int fd, unsigned char *packet){
     // RECEIVE PACKET I: F A C BCC1(A xor C) DATA BCC2(DATA0 xor DATA1 xor...) F
     // DATA is a sequence of bytes
 
-    unsigned char byte, i_n;
+    static char sequenceNumber = 0;
+
+    unsigned char byte, sequenceNumberReceived;
     int packet_position = 0;
     enum LLState state = START;
 
@@ -397,13 +395,13 @@ int llread(int fd, unsigned char *packet){
         if(read(fd, &byte, 1) > 0){
             switch(state){
                 case START:
-                    printf("Start\n");
+                    printf("start state\n");
                     if(byte == FLAG){
                         state = FLAG_RCV;
                     }
                     break;
                 case FLAG_RCV:
-                    printf("flag_rcv\n");
+                    printf("flag_rcv state\n");
                     if(byte == A_NORMAL){
                         state = A_RCV;
                     }else if(byte != FLAG){
@@ -411,13 +409,13 @@ int llread(int fd, unsigned char *packet){
                     }
                     break;
                 case A_RCV:
-                    printf("a_rcv\n");
+                    printf("a_rcv state\n");
                     if(byte == C_I0){
                         state = C_RCV;
-                        i_n = 0;
+                        sequenceNumberReceived = 0;
                     }else if(byte == C_I1){
                         state = C_RCV;
-                        i_n = 1;
+                        sequenceNumberReceived = 1;
                     }else if(byte == FLAG){
                         state = FLAG_RCV;
                     }else{
@@ -425,10 +423,10 @@ int llread(int fd, unsigned char *packet){
                     }
                     break;
                 case C_RCV:
-                    printf("c_rcv\n");
-                    if(i_n == 0 && byte == (A_NORMAL ^ C_I0)){
+                    printf("c_rcv state\n");
+                    if(sequenceNumberReceived == 0 && byte == (A_NORMAL ^ C_I0)){
                         state = RECEIVING_DATA;
-                    }else if(i_n == 1 && byte == (A_NORMAL ^ C_I1)){
+                    }else if(sequenceNumberReceived == 1 && byte == (A_NORMAL ^ C_I1)){
                         state = RECEIVING_DATA;
                     }else if(byte == FLAG){
                         state = FLAG_RCV;
@@ -457,14 +455,20 @@ int llread(int fd, unsigned char *packet){
 
                         if(xor == bcc2){
                             state = STOP;
-                            // send RR (i_n+1)%2
-                            supervision_packet[2] = i_n == 0 ? C_RR1 : C_RR0;
+                            // send RR
+                            supervision_packet[2] = sequenceNumberReceived == 0 ? C_RR1 : C_RR0;
                             supervision_packet[3] = A_NORMAL ^ supervision_packet[2];
                             write(fd, supervision_packet, 5);
-                            return packet_position;
+
+                            // check if it is not a repeated packet
+                            if(sequenceNumberReceived == sequenceNumber){
+                                sequenceNumber = (sequenceNumber + 1) % 2;
+                                return packet_position;
+                            }
+                            return 0;
                         }else{
                             // send REJ (i_n)
-                            supervision_packet[2] = i_n == 0 ? C_REJ0 : C_REJ1;
+                            supervision_packet[2] = sequenceNumberReceived == 0 ? C_REJ0 : C_REJ1;
                             supervision_packet[3] = A_NORMAL ^ supervision_packet[2];
                             write(fd, supervision_packet, 5);
                         }
