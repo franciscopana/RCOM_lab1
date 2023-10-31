@@ -95,14 +95,13 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
             unsigned char* packet = malloc(bytesToSend + 3);
             packet[0] = 0x01; // control field data
-            printf("bytesToSend: %ld\n", bytesToSend);
             packet[1] = (bytesToSend >> 8) & 0xFF;
             packet[2] = bytesToSend & 0xFF;
             memcpy(packet + 3, fileBuffer + bytesSent, bytesToSend);
             llwrite(fd, packet, bytesToSend + 3, linkLayer);
             bytesSent += bytesToSend;
             free(packet);
-            printf("bytesSent2: %ld\n", bytesSent);
+            printf("file total bytes sent: %ld\n", bytesSent);
         }
         free(fileBuffer);
 

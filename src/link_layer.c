@@ -317,6 +317,7 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
         unsigned char cField = 0;
 
         while(!alarmRing && !received){
+            printf("in while\n");
             if(write(fd, packet, packetSize) < 0){
                 perror("write");
                 exit(-1);
@@ -376,6 +377,9 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
             }
         }
     
+        printf("Outside while\n");
+        printf("received: %d\n", received);
+
         if(received){
             if(cField == C_RR0 || cField == C_RR1){
                 sequenceNumber = (sequenceNumber+1) % 2;
