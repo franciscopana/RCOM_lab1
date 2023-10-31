@@ -98,7 +98,10 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             packet[1] = (bytesToSend >> 8) & 0xFF;
             packet[2] = bytesToSend & 0xFF;
             memcpy(packet + 3, fileBuffer + bytesSent, bytesToSend);
-            llwrite(fd, packet, bytesToSend + 3, linkLayer);
+            if(llwrite(fd, packet, bytesToSend + 3, linkLayer) < 0){
+                printf("Error sending packet\n");
+                exit(1);
+            }
             bytesSent += bytesToSend;
             free(packet);
             printf("file total bytes sent: %ld\n", bytesSent);
