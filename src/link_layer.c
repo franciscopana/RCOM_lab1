@@ -330,7 +330,6 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
                     perror("read");
                     exit(-1);
                 }
-                printf("state: %d\n", state);
 
                 switch(state){
                     case START:
@@ -410,7 +409,6 @@ int llread(int fd, unsigned char *packet){
 
     while (state != STOP){
         if(read(fd, &byte, 1) > 0){
-            printf("state: %d\n", state);
             switch(state){
                 case START:
                     printf("start state\n");
@@ -457,7 +455,6 @@ int llread(int fd, unsigned char *packet){
                     if(byte == ESCAPE){
                         state = DESTUFFING;
                     }else if(byte == FLAG){
-                        state = FLAG_RCV;
                         unsigned char bcc2 = packet[--packet_position];
                         packet[packet_position] = '\0';
                         
@@ -490,6 +487,7 @@ int llread(int fd, unsigned char *packet){
                             supervision_packet[2] = sequenceNumberReceived == 0 ? C_REJ0 : C_REJ1;
                             supervision_packet[3] = A_NORMAL ^ supervision_packet[2];
                             write(fd, supervision_packet, 5);
+                            state = START;
                         }
                     }else{
                         packet[packet_position++] = byte;
