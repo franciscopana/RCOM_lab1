@@ -382,7 +382,7 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
                 sequenceNumber = (sequenceNumber+1) % 2;
                 return bufSize;
             }else if(cField == C_REJ0 || cField == C_REJ1){
-                attempts = 0;
+                attempts = attempts - 2;
                 //attempts--;
             }else if(cField == C_DISC){
                 return -1;
@@ -515,6 +515,7 @@ int llread(int fd, unsigned char *packet){
                     state = RECEIVING_DATA;
                     break;
                 default:
+                    state = START;
                     break;
             }
         }
