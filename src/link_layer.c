@@ -20,13 +20,11 @@
 #define TRUE 1
 
 int alarmRing = FALSE;
-int alarmCount = 0;
 struct termios oldtio;
 
 // Alarm function handler
 void alarmHandler(int signal){
     alarmRing = TRUE;
-    alarmCount++;
 }
 
 int enable_alarm(){
@@ -62,6 +60,8 @@ int disable_alarm(){
 ////////////////////////////////////////////////
 int llopen(LinkLayer connectionParameters)
 {
+    enable_alarm();
+
     // Open serial port
     int fd = open(connectionParameters.serialPort, O_RDWR | O_NOCTTY);
 
@@ -129,7 +129,6 @@ int llopen(LinkLayer connectionParameters)
                 exit(-1);
             }
             // activate alarm
-            enable_alarm();
             alarmRing = FALSE;
             alarm(connectionParameters.timeout);
             
@@ -184,7 +183,6 @@ int llopen(LinkLayer connectionParameters)
             } 
             attempts++;
         }
-        disable_alarm();
         if(state != STOP) return -1;
         printf("Connection established\n");
         return fd;
@@ -312,9 +310,7 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
     // Send packet
     int attempts = 0;
     while(attempts < connectionParameters.nRetransmissions){
-
         // activate alarm
-        enable_alarm();
         alarmRing = FALSE;
         alarm(connectionParameters.timeout);
 
@@ -556,7 +552,6 @@ int llclose(int fd, int showStatistics, LinkLayer connectionParameters)
                 exit(-1);
             }
             // activate alarm
-            enable_alarm();
             alarmRing = FALSE;
             alarm(connectionParameters.timeout);
             
@@ -611,7 +606,6 @@ int llclose(int fd, int showStatistics, LinkLayer connectionParameters)
             } 
             attempts++;
         }
-        disable_alarm();
         if(state != STOP) return -1;
 
         // wait for fully process DISC from receiver
@@ -756,7 +750,6 @@ int llclose(int fd, int showStatistics, LinkLayer connectionParameters)
                 exit(-1);
             }
             // activate alarm
-            enable_alarm();
             alarmRing = FALSE;
             alarm(connectionParameters.timeout);
             
@@ -811,7 +804,6 @@ int llclose(int fd, int showStatistics, LinkLayer connectionParameters)
             }
             attempts++;
         }
-        disable_alarm();
         if(state != STOP) return -1;
 
         printf("Receiver received UA from Transmitter\n");
@@ -825,5 +817,6 @@ int llclose(int fd, int showStatistics, LinkLayer connectionParameters)
 
     close(fd);
     printf("Connection closed\n");
+    disable_alarm();
     return 1;
 }
