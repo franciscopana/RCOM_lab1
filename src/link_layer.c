@@ -24,6 +24,7 @@ struct termios oldtio;
 
 // Alarm function handler
 void alarmHandler(int signal){
+    printf("Alarm\n");
     alarmRing = TRUE;
 }
 
@@ -285,7 +286,6 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
         //TODO-REFACTOR: Create a stuffing and destuffing function
         // Stuffing
         if(buf[j] == FLAG || buf[j] == ESCAPE){
-            printf("Stuffing\n");
             packet = (unsigned char *) realloc(packet, ++packetSize);
             packet[i++] = ESCAPE;
             packet[i++] = buf[j] ^ 0x20;
@@ -296,7 +296,6 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
 
     // BCC2 Stuffing
     if(BCC2 == FLAG || BCC2 == ESCAPE){
-        printf("Stuffing\n");
         packet = (unsigned char *) realloc(packet, ++packetSize);
         packet[i++] = ESCAPE;
         packet[i++] = BCC2 ^ 0x20;
@@ -305,11 +304,11 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
     }
     packet[i++] = FLAG;
 
-    printf("packetSize: %d\n", packetSize);
-
     // Send packet
     int attempts = 0;
     while(attempts < connectionParameters.nRetransmissions){
+        printf("attempt: %d\n", attempts);
+        
         // activate alarm
         alarmRing = FALSE;
         alarm(connectionParameters.timeout);
@@ -375,8 +374,6 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
                         break;
                 }
             }
-
-            attempts++;
         }
     
         if(received){
@@ -390,6 +387,7 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
                 return -1;
             }
         }
+        attempts++;
     }
 
     return -1;
