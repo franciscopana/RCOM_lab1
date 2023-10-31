@@ -331,7 +331,7 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
                     exit(-1);
                 }
                 printf("state: %d\n", state);
-                
+
                 switch(state){
                     case START:
                         if(byte == FLAG){
@@ -409,8 +409,8 @@ int llread(int fd, unsigned char *packet){
     enum LLState state = START;
 
     while (state != STOP){
-        printf("state: %d\n", state);
         if(read(fd, &byte, 1) > 0){
+            printf("state: %d\n", state);
             switch(state){
                 case START:
                     printf("start state\n");
@@ -457,6 +457,7 @@ int llread(int fd, unsigned char *packet){
                     if(byte == ESCAPE){
                         state = DESTUFFING;
                     }else if(byte == FLAG){
+                        state = FLAG_RCV;
                         unsigned char bcc2 = packet[--packet_position];
                         packet[packet_position] = '\0';
                         
