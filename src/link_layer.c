@@ -377,16 +377,13 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
             }
         }
     
-        printf("Outside while\n");
-        printf("received: %d\n", received);
-
         if(received){
             if(cField == C_RR0 || cField == C_RR1){
                 sequenceNumber = (sequenceNumber+1) % 2;
                 return bufSize;
             }else if(cField == C_REJ0 || cField == C_REJ1){
-                //atempts = 0;
-                attempts--;
+                atempts = 0;
+                //attempts--;
             }else if(cField == C_DISC){
                 return -1;
             }
@@ -496,7 +493,6 @@ int llread(int fd, unsigned char *packet){
                     }
                     break;
                 case DESTUFFING:
-                    printf("DESTUFFING\n");
                     /*
                     STUFFING:qwdx
                     byte FLAG(0x7e) replaced for ESCAPE(0x7d) followed by 0x5e
