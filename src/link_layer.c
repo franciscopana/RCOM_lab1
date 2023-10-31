@@ -325,7 +325,7 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
             // Wait for RR
             unsigned char byte = 0;
             enum LLState state = START;
-            while(state != STOP){
+            while(!alarmRing && state != STOP){
                 if(read(fd, &byte, 1) < 0){
                     perror("read");
                     exit(-1);
