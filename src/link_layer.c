@@ -671,9 +671,9 @@ int llclose(int fd, int showStatistics, LinkLayer connectionParameters)
         //send UA
         unsigned char ua_packet[5] = {0};
         ua_packet[0] = FLAG;
-        ua_packet[1] = A_NORMAL;
+        ua_packet[1] = A_REVERSE;
         ua_packet[2] = C_UA;
-        ua_packet[3] = A_NORMAL ^ C_UA;
+        ua_packet[3] = A_REVERSE ^ C_UA;
         ua_packet[4] = FLAG;
 
         if(write(fd, ua_packet, 5) < 0){
@@ -774,7 +774,7 @@ int llclose(int fd, int showStatistics, LinkLayer connectionParameters)
                         }
                         break;
                     case FLAG_RCV:
-                        if(byte == A_NORMAL){
+                        if(byte == A_REVERSE){
                             state = A_RCV;
                         }else if(byte != FLAG){
                             state = START;
@@ -790,7 +790,7 @@ int llclose(int fd, int showStatistics, LinkLayer connectionParameters)
                         }
                         break;
                     case C_RCV:
-                        if(byte == (A_NORMAL ^ C_UA)){
+                        if(byte == (A_REVERSE ^ C_UA)){
                             state = BCC_OK;
                         }else if(byte == FLAG){
                             state = FLAG_RCV;
