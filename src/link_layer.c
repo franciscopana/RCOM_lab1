@@ -41,6 +41,22 @@ int disable_alarm(){
 // MISC
 #define _POSIX_SOURCE 1 // POSIX compliant source
 
+
+// TODO-REFACTOR
+/* Generating packets file
+- UA normal
+- UA reverse
+- DISC normal
+- DISC reverse
+- SET normal
+- RR0
+- RR1
+- REJ0
+- REJ1
+
+
+*/
+
 ////////////////////////////////////////////////
 // LLOPEN
 ////////////////////////////////////////////////
@@ -54,6 +70,7 @@ int llopen(LinkLayer connectionParameters)
         exit(-1);
     }
 
+    // TODO-REFACTOR: Move this to an independent function
     struct termios newtio;
 
     // Save current port settings
@@ -93,6 +110,7 @@ int llopen(LinkLayer connectionParameters)
 
     //  receiver waits for SET and sends UA
 
+    // TODO-REFACTOR make a switch
     if(connectionParameters.role == LlTx){
         unsigned char set_packet[5] = {0};
         set_packet[0] = FLAG;
@@ -101,6 +119,7 @@ int llopen(LinkLayer connectionParameters)
         set_packet[3] = A_NORMAL ^ C_SET;
         set_packet[4] = FLAG;
 
+        //TODO-REFACTOR: Create a generic state machine function
         enum LLState state = START;
         int attempts = 0;
         while(attempts < connectionParameters.nRetransmissions && state != STOP){
@@ -264,6 +283,8 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
     for (unsigned int j = 0 ; j < bufSize ; j++) {
         // XOR operation
         BCC2 ^= buf[j]; 
+
+        //TODO-REFACTOR: Create a stuffing and destuffing function
         // Stuffing
         if(buf[j] == FLAG || buf[j] == ESCAPE){
             printf("Stuffing\n");

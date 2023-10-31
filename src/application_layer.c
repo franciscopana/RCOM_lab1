@@ -11,6 +11,9 @@
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
                       int nTries, int timeout, const char *filename)
 {
+
+    //TODO-REFACTOR: Function to create the linkLayer and move fd to LinkLayer
+
     LinkLayer linkLayer;
     strcpy(linkLayer.serialPort, serialPort);
     if(strcmp(role, "tx") == 0)
@@ -32,8 +35,12 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         exit(1);
     }
 
+    //TODO-REFACTOR: Switch to a switch
     // I am sending
     if(linkLayer.role == LlTx){
+
+        //TODO-REFACTOR: This can be a function that return the file size and etc
+
         //open file
         FILE *file = fopen(filename, "r");
 
