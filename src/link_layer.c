@@ -330,7 +330,8 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
                     perror("read");
                     exit(-1);
                 }
-
+                printf("state: %d\n", state);
+                
                 switch(state){
                     case START:
                         if(byte == FLAG){
@@ -382,7 +383,7 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
                 sequenceNumber = (sequenceNumber+1) % 2;
                 return bufSize;
             }else if(cField == C_REJ0 || cField == C_REJ1){
-                attempts = attempts - 2;
+                attempts--;
                 //attempts--;
             }else if(cField == C_DISC){
                 return -1;
@@ -408,6 +409,7 @@ int llread(int fd, unsigned char *packet){
     enum LLState state = START;
 
     while (state != STOP){
+        printf("state: %d\n", state);
         if(read(fd, &byte, 1) > 0){
             switch(state){
                 case START:
