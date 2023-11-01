@@ -20,7 +20,7 @@ struct termios oldtio;
 
 // Alarm function handler
 void alarmHandler(int signal){
-    printf("Alarm\n");
+    printf("Alarm ringing!\n");
     alarmRing = TRUE;
 }
 
@@ -273,7 +273,6 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
     unsigned char BCC2 = 0x00;
     int i = 4;
     // print buffer size
-    printf("bufSize: %d\n", bufSize);
     for (unsigned int j = 0 ; j < bufSize ; j++) {
         // XOR operation
         BCC2 ^= buf[j]; 
@@ -316,7 +315,7 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
         alarmRing = FALSE;
         alarm(connectionParameters.timeout);
 
-        char ack;
+        unsigned char ack;
         // wait for response
         enum LLState state = START;
         while(!alarmRing && state != STOP){
@@ -350,7 +349,7 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
                     }
                     break;
                 case C_RCV:
-                    if(byte == (A_NORMAL ^ byte)){
+                    if(byte == (A_NORMAL ^ ack)){
                         state = BCC_OK;
                     }else if(byte == FLAG){
                         state = FLAG_RCV;
@@ -397,13 +396,11 @@ int llread(int fd, unsigned char *packet){
         if(read(fd, &byte, 1) > 0){
             switch(state){
                 case START:
-                    printf("start state\n");
                     if(byte == FLAG){
                         state = FLAG_RCV;
                     }
                     break;
                 case FLAG_RCV:
-                    printf("flag_rcv state\n");
                     if(byte == A_NORMAL){
                         state = A_RCV;
                     }else if(byte != FLAG){
@@ -411,7 +408,6 @@ int llread(int fd, unsigned char *packet){
                     }
                     break;
                 case A_RCV:
-                    printf("a_rcv state\n");
                     if(byte == C_I0){
                         state = C_RCV;
                         sequenceNumberReceived = 0;
@@ -425,7 +421,6 @@ int llread(int fd, unsigned char *packet){
                     }
                     break;
                 case C_RCV:
-                    printf("c_rcv state\n");
                     if(sequenceNumberReceived == 0 && byte == (A_NORMAL ^ C_I0)){
                         state = RECEIVING_DATA;
                     }else if(sequenceNumberReceived == 1 && byte == (A_NORMAL ^ C_I1)){
@@ -437,7 +432,6 @@ int llread(int fd, unsigned char *packet){
                     }
                     break;
                 case RECEIVING_DATA:
-                    //printf("RECEIVING_DATA\n");
                     if(byte == ESCAPE){
                         state = DESTUFFING;
                     }else if(byte == FLAG){
@@ -518,8 +512,8 @@ int llclose(int fd, int showStatistics, LinkLayer connectionParameters)
 
     if(connectionParameters.role == LlTx){
         printf("Entered llclose on transmitter\n");
+        
         // transmitter sends DISC and waits for DISC then sends UA
-
         unsigned char disc_packet[5] = {0};
         disc_packet[0] = FLAG;
         disc_packet[1] = A_NORMAL;
