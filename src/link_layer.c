@@ -25,6 +25,8 @@ void reset_old_termios(int fd);
 void alarmHandler(int signal);
 int enable_alarm();
 int disable_alarm();
+void stuffing(unsigned char *frame, int *frameSize, int *i, unsigned char byte);
+void destuffing(unsigned char *frame, int *frameSize, unsigned char byte);
 
 // MISC
 #define _POSIX_SOURCE 1 // POSIX compliant source
@@ -204,30 +206,12 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
 
     unsigned char BCC2 = 0x00;
     int i = 4;
-    // print buffer size
     for (unsigned int j = 0 ; j < bufSize ; j++) {
-        // XOR operation
-        BCC2 ^= buf[j]; 
-
-        //TODO-REFACTOR: Create a stuffing and destuffing function
-        // Stuffing
-        if(buf[j] == FLAG || buf[j] == ESCAPE){
-            frame = (unsigned char *) realloc(frame, ++frameSize);
-            frame[i++] = ESCAPE;
-            frame[i++] = buf[j] ^ 0x20;
-        }else{
-            frame[i++] = buf[j];
-        }
+        BCC2 ^= buf[j]; // XOR operation
+        stuffing(frame, &frameSize, &i, buf[j]);
     }
-
     // BCC2 Stuffing
-    if(BCC2 == FLAG || BCC2 == ESCAPE){
-        frame = (unsigned char *) realloc(frame, ++frameSize);
-        frame[i++] = ESCAPE;
-        frame[i++] = BCC2 ^ 0x20;
-    }else{
-        frame[i++] = BCC2;
-    }
+    stuffing(frame, &frameSize, &i, BCC2);
     frame[i++] = FLAG;
 
     int attempts = 0;
@@ -295,11 +279,9 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
             }
         }
         if(state == STOP && (ack == C_RR0 || ack == C_RR1)){
-            // if it's RR we must increment sequenceNumber (mod 2) and return bufSize
             sequenceNumber = (sequenceNumber + 1) % 2;
             return bufSize;
         }
-        // otherwise we must send the packet again - we'll use one more attempt
         attempts++;
     }
     return -1;
@@ -399,25 +381,7 @@ int llread(int fd, unsigned char *packet){
                     }
                     break;
                 case DESTUFFING:
-                    /*
-                    STUFFING:
-                    byte FLAG(0x7e) replaced for ESCAPE(0x7d) followed by 0x5e
-                    byte ESCAPE(0x7d) replaced for ESCAPE(0x7d) followed by 0x5d
-
-                    Here we want to do the reverse process
-
-                                 p_pos   byte        
-                    | 0X7D | -> | 0x7d | 0x5d |
-                    | 0X7E | -> | 0x7d | 0x5e |
-                    */
-
-                    if(byte == 0x5e){
-                        packet[packet_position++] = FLAG;
-                    }else if(byte == 0x5d){
-                        packet[packet_position++] = ESCAPE;
-                    }else{
-                        packet[packet_position++] = byte;
-                    }
+                    destuffing(packet, &packet_position, byte);
                     state = RECEIVING_DATA;
                     break;
                 default:
@@ -750,4 +714,24 @@ void reset_old_termios(int fd){
     }
 
     close(fd);
+}
+
+void stuffing(unsigned char *frame, int *frameSize, int *i, unsigned char byte){
+    if(byte == FLAG || byte == ESCAPE){
+        frame = (unsigned char *) realloc(frame, ++(*frameSize));
+        frame[(*i)++] = ESCAPE;
+        frame[(*i)++] = byte ^ 0x20;
+    }else{
+        frame[(*i)++] = byte;
+    }
+}
+
+void destuffing(unsigned char *frame, int *frameSize, unsigned char byte){
+    if(byte == 0x5e){
+        frame[(*frameSize)++] = FLAG;
+    }else if(byte == 0x5d){
+        frame[(*frameSize)++] = ESCAPE;
+    }else{
+        frame[(*frameSize)++] = byte;
+    }
 }
