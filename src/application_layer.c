@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #define MAX_PAYLOAD 1000
 
@@ -167,7 +168,10 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         }
         printf("New filename: %s\n", newFilename);
 
-        //create file to append mode and clear its content
+        //if the file already exists, delete it
+        if(access(newFilename, F_OK) != -1){
+            remove(newFilename);
+        }
         FILE *file = fopen(newFilename, "a");
 
         int bytesWritten = 0;
