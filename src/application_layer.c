@@ -82,7 +82,10 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
         //llwrite control packet
         printf("controlPacketSize: %d\n", controlPacketSize);
-        llwrite(fd, startControlPacket, controlPacketSize, linkLayer);
+        if(llwrite(fd, startControlPacket, controlPacketSize, linkLayer) < 0){
+            printf("Error sending packet\n");
+            exit(1);
+        }
 
         //loop buffer and send data packets
         long int bytesSent = 0;
@@ -114,7 +117,10 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         endControlPacket[0] = 0x03; // control field end
 
         //llwrite control packet
-        llwrite(fd, endControlPacket, controlPacketSize, linkLayer);
+        if(llwrite(fd, endControlPacket, controlPacketSize, linkLayer) < 0){
+            printf("Error sending packet\n");
+            exit(1);
+        }
         free(startControlPacket);
         free(endControlPacket);
         

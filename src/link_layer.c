@@ -15,16 +15,12 @@
 #include "link_layer.h"
 #include "macros.h"
 
-//TODO: move out of here
-#define FALSE 0
-#define TRUE 1
-
 int alarmRing = FALSE;
 struct termios oldtio;
 
 // Alarm function handler
 void alarmHandler(int signal){
-    printf("Alarm\n");
+    printf("Alarm ringing!\n");
     alarmRing = TRUE;
 }
 
@@ -267,18 +263,16 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
 
     static int sequenceNumber = 0;
 
-    // Construct information packet
-    int packetSize = bufSize + 6;
-    unsigned char *packet = (unsigned char *) malloc(packetSize);
-    packet[0] = FLAG;
-    packet[1] = A_NORMAL;
-    packet[2] = sequenceNumber == 0 ? C_I0 : C_I1;
-    packet[3] = packet[1] ^ packet[2];
+    int frameSize = bufSize + 6;
+    unsigned char *frame = (unsigned char *) malloc(frame);
+    frame[0] = FLAG;
+    frame[1] = A_NORMAL;
+    frame[2] = sequenceNumber == 0 ? C_I0 : C_I1;
+    frame[3] = frame[1] ^ frame[2];
 
     unsigned char BCC2 = 0x00;
     int i = 4;
     // print buffer size
-    printf("bufSize: %d\n", bufSize);
     for (unsigned int j = 0 ; j < bufSize ; j++) {
         // XOR operation
         BCC2 ^= buf[j]; 
@@ -286,111 +280,102 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
         //TODO-REFACTOR: Create a stuffing and destuffing function
         // Stuffing
         if(buf[j] == FLAG || buf[j] == ESCAPE){
-            packet = (unsigned char *) realloc(packet, ++packetSize);
-            packet[i++] = ESCAPE;
-            packet[i++] = buf[j] ^ 0x20;
+            frame = (unsigned char *) realloc(frame, ++frameSize);
+            frame[i++] = ESCAPE;
+            frame[i++] = buf[j] ^ 0x20;
         }else{
-            packet[i++] = buf[j];
+            frame[i++] = buf[j];
         }
     }
 
     // BCC2 Stuffing
     if(BCC2 == FLAG || BCC2 == ESCAPE){
-        packet = (unsigned char *) realloc(packet, ++packetSize);
-        packet[i++] = ESCAPE;
-        packet[i++] = BCC2 ^ 0x20;
+        frame = (unsigned char *) realloc(frame, ++frameSize);
+        frame[i++] = ESCAPE;
+        frame[i++] = BCC2 ^ 0x20;
     }else{
-        packet[i++] = BCC2;
+        frame[i++] = BCC2;
     }
-    packet[i++] = FLAG;
+    frame[i++] = FLAG;
 
-    // Send packet
+    // we must send the packet. we have connectionParameters.nRetransmissions attempts to do it
+    // after sending it, we must wait for a response. we have connectionParameters.timeout seconds to do it
+    // if we don't receive a response, we must send the packet again
+    // the response can be RR or REJ
+    // if it's RR we must increment sequenceNumber (mod 2) and return bufSize
+    // if it's REJ we must send the packet again - it's the same as if we didn't receive a response
     int attempts = 0;
     while(attempts < connectionParameters.nRetransmissions){
-        printf("attempt: %d\n", attempts);
-        
+        // send packet
+        if(write(fd, frame, frameSize) < 0){
+            perror("write");
+            exit(-1);
+        }
         // activate alarm
         alarmRing = FALSE;
         alarm(connectionParameters.timeout);
 
-        int received = FALSE;    
-        unsigned char cField = 0;
-
-        while(!alarmRing && !received){
-            printf("in while\n");
-            if(write(fd, packet, packetSize) < 0){
-                perror("write");
+        unsigned char ack;
+        // wait for response
+        enum LLState state = START;
+        while(!alarmRing && state != STOP){
+            unsigned char byte;
+            if(read(fd, &byte, 1) < 0){
+                perror("read");
                 exit(-1);
             }
-            // Wait for RR
-            unsigned char byte = 0;
-            enum LLState state = START;
-            while(!alarmRing && state != STOP){
-                if(read(fd, &byte, 1) < 0){
-                    perror("read");
-                    exit(-1);
-                }
 
-                switch(state){
-                    case START:
-                        if(byte == FLAG){
-                            state = FLAG_RCV;
-                        }
-                        break;
-                    case FLAG_RCV:
-                        if(byte == A_NORMAL){
-                            state = A_RCV;
-                        }else if(byte != FLAG){
-                            state = START;
-                        }
-                        break;
-                    case A_RCV:
-                        if(byte == C_RR0 || byte == C_RR1 || byte == C_REJ0 || byte == C_REJ1 || byte == C_DISC){
-                            state = C_RCV;
-                            cField = byte;
-                        }else if(byte == FLAG){
-                            state = FLAG_RCV;
-                        }else{
-                            state = START;
-                        }
-                        break;
-                    case C_RCV:
-                        if(byte == (A_NORMAL ^ cField)){
-                            state = BCC_OK;
-                        }else if(byte == FLAG){
-                            state = FLAG_RCV;
-                        }else{
-                            state = START;
-                        }
-                        break;
-                    case BCC_OK:
-                        if(byte == FLAG){
-                            state = STOP;
-                            received = TRUE;
-                        }else{
-                            state = START;
-                        }
-                        break;
-                    default:
-                        break;
-                }
+            switch(state){
+                case START:
+                    if(byte == FLAG){
+                        state = FLAG_RCV;
+                    }
+                    break;
+                case FLAG_RCV:
+                    if(byte == A_NORMAL){
+                        state = A_RCV;
+                    }else if(byte != FLAG){
+                        state = START;
+                    }
+                    break;
+                case A_RCV:
+                    if(byte == C_RR0 || byte == C_RR1 || byte == C_REJ0 || byte == C_REJ1){
+                        ack = byte;
+                        state = C_RCV;
+                    }else if(byte == FLAG){
+                        state = FLAG_RCV;
+                    }else{
+                        state = START;
+                    }
+                    break;
+                case C_RCV:
+                    if(byte == (A_NORMAL ^ ack)){
+                        state = BCC_OK;
+                    }else if(byte == FLAG){
+                        state = FLAG_RCV;
+                    }else{
+                        state = START;
+                    }
+                    break;
+                case BCC_OK:
+                    if(byte == FLAG){
+                        state = STOP;
+                    }else{
+                        state = START;
+                    }
+                    break;
+                default:
+                    break;
             }
         }
-    
-        if(received){
-            if(cField == C_RR0 || cField == C_RR1){
-                sequenceNumber = (sequenceNumber+1) % 2;
-                return bufSize;
-            }else if(cField == C_REJ0 || cField == C_REJ1){
-                attempts--;
-                //attempts--;
-            }else if(cField == C_DISC){
-                return -1;
-            }
+        if(state == STOP && (ack == C_RR0 || ack == C_RR1)){
+            // if it's RR we must increment sequenceNumber (mod 2) and return bufSize
+            sequenceNumber = (sequenceNumber + 1) % 2;
+            return bufSize;
         }
+        // otherwise we must send the packet again - we'll use one more attempt
         attempts++;
     }
-
     return -1;
 }
 
@@ -411,13 +396,11 @@ int llread(int fd, unsigned char *packet){
         if(read(fd, &byte, 1) > 0){
             switch(state){
                 case START:
-                    printf("start state\n");
                     if(byte == FLAG){
                         state = FLAG_RCV;
                     }
                     break;
                 case FLAG_RCV:
-                    printf("flag_rcv state\n");
                     if(byte == A_NORMAL){
                         state = A_RCV;
                     }else if(byte != FLAG){
@@ -425,7 +408,6 @@ int llread(int fd, unsigned char *packet){
                     }
                     break;
                 case A_RCV:
-                    printf("a_rcv state\n");
                     if(byte == C_I0){
                         state = C_RCV;
                         sequenceNumberReceived = 0;
@@ -439,7 +421,6 @@ int llread(int fd, unsigned char *packet){
                     }
                     break;
                 case C_RCV:
-                    printf("c_rcv state\n");
                     if(sequenceNumberReceived == 0 && byte == (A_NORMAL ^ C_I0)){
                         state = RECEIVING_DATA;
                     }else if(sequenceNumberReceived == 1 && byte == (A_NORMAL ^ C_I1)){
@@ -451,7 +432,6 @@ int llread(int fd, unsigned char *packet){
                     }
                     break;
                 case RECEIVING_DATA:
-                    //printf("RECEIVING_DATA\n");
                     if(byte == ESCAPE){
                         state = DESTUFFING;
                     }else if(byte == FLAG){
@@ -532,8 +512,8 @@ int llclose(int fd, int showStatistics, LinkLayer connectionParameters)
 
     if(connectionParameters.role == LlTx){
         printf("Entered llclose on transmitter\n");
+        
         // transmitter sends DISC and waits for DISC then sends UA
-
         unsigned char disc_packet[5] = {0};
         disc_packet[0] = FLAG;
         disc_packet[1] = A_NORMAL;

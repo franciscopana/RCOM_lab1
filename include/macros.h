@@ -1,3 +1,6 @@
+#define FALSE 0
+#define TRUE 1
+
 #define FLAG 0x7E
 #define A_NORMAL 0X03
 #define A_REVERSE 0x01
