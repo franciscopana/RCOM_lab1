@@ -14,46 +14,27 @@
 
 #include "link_layer.h"
 #include "macros.h"
+#include "frames.h"
 
 int alarmRing = FALSE;
 struct termios oldtio;
 
-// Some private functions declarations
+//Private functions declarations
 void setup_new_termios(int fd, LinkLayer connectionParameters);
 void reset_old_termios(int fd);
-
-// Alarm function handler
-void alarmHandler(int signal){
-    printf("Alarm ringing!\n");
-    alarmRing = TRUE;
-}
-
-int enable_alarm(){
-    (void)signal(SIGALRM, alarmHandler);
-    return 0;
-}
-int disable_alarm(){
-    (void)signal(SIGALRM, SIG_IGN);
-    return 0;
-}
+void alarmHandler(int signal);
+int enable_alarm();
+int disable_alarm();
 
 // MISC
 #define _POSIX_SOURCE 1 // POSIX compliant source
 
-
 // TODO-REFACTOR
 /* Generating packets file
-- UA normal
-- UA reverse
-- DISC normal
-- DISC reverse
-- SET normal
 - RR0
 - RR1
 - REJ0
 - REJ1
-
-
 */
 
 ////////////////////////////////////////////////
@@ -70,35 +51,15 @@ int llopen(LinkLayer connectionParameters){
     }
 
     setup_new_termios(fd, connectionParameters);
-    
-    //  transmitter sends SET and waits for UA using the retransmission mechanism    
-    //  while attempt < MAX_ATTEMPTS
-    //      send SET
-    //      initialize alarm
-    //      while !timeout
-    //          wait for UA
-    //          if UA received
-    //              process_UA()
-    //              return fd
-    //  return -1.
 
-    //  receiver waits for SET and sends UA
-
-    // TODO-REFACTOR make a switch
     if(connectionParameters.role == LlTx){
-        unsigned char set_packet[5] = {0};
-        set_packet[0] = FLAG;
-        set_packet[1] = A_NORMAL;
-        set_packet[2] = C_SET;
-        set_packet[3] = A_NORMAL ^ C_SET;
-        set_packet[4] = FLAG;
 
         //TODO-REFACTOR: Create a generic state machine function
         enum LLState state = START;
         int attempts = 0;
         while(attempts < connectionParameters.nRetransmissions && state != STOP){
             // send set
-            if(write(fd, set_packet, 5) < 0){
+            if(write(fd, get_set_packet(), 5) < 0){
                 perror("write");
                 exit(-1);
             }
@@ -163,7 +124,7 @@ int llopen(LinkLayer connectionParameters){
 
     }else if(connectionParameters.role == LlRx){
 
-        // wait for fully process SET
+        //Wait for fully process SET and send UA
         unsigned char byte;
         enum LLState state = START;
         while(state != STOP){
@@ -216,13 +177,7 @@ int llopen(LinkLayer connectionParameters){
         }
 
         // send UA
-        unsigned char ua_packet[5] = {0};
-        ua_packet[0] = FLAG;
-        ua_packet[1] = A_NORMAL;
-        ua_packet[2] = C_UA;
-        ua_packet[3] = A_NORMAL ^ C_UA;
-        ua_packet[4] = FLAG;
-
+        unsigned char *ua_packet = get_ua_packet();
         if(write(fd, ua_packet, 5) < 0){
             perror("write");
             exit(-1);
@@ -274,25 +229,19 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
     }
     frame[i++] = FLAG;
 
-    // we must send the packet. we have connectionParameters.nRetransmissions attempts to do it
-    // after sending it, we must wait for a response. we have connectionParameters.timeout seconds to do it
-    // if we don't receive a response, we must send the packet again
-    // the response can be RR or REJ
-    // if it's RR we must increment sequenceNumber (mod 2) and return bufSize
-    // if it's REJ we must send the packet again - it's the same as if we didn't receive a response
     int attempts = 0;
     while(attempts < connectionParameters.nRetransmissions){
-        // send packet
+        //Send packet
         if(write(fd, frame, frameSize) < 0){
             perror("write");
             exit(-1);
         }
-        // activate alarm
+
         alarmRing = FALSE;
         alarm(connectionParameters.timeout);
 
+        //wait for response
         unsigned char ack;
-        // wait for response
         enum LLState state = START;
         while(!alarmRing && state != STOP){
             unsigned char byte;
@@ -359,8 +308,8 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
 // LLREAD
 ////////////////////////////////////////////////
 int llread(int fd, unsigned char *packet){
-    // RECEIVE PACKET I: F A C BCC1(A xor C) DATA BCC2(DATA0 xor DATA1 xor...) F
-    // DATA is a sequence of bytes
+    // RECEIVE PACKET I: 
+    // [F | A | C | BCC1(A xor C) | DATA1 | ... | DATAk | BCC2(DATA0 xor DATA1 xor...) | F]
 
     static char sequenceNumber = 0;
 
@@ -451,7 +400,7 @@ int llread(int fd, unsigned char *packet){
                     break;
                 case DESTUFFING:
                     /*
-                    STUFFING:qwdx
+                    STUFFING:
                     byte FLAG(0x7e) replaced for ESCAPE(0x7d) followed by 0x5e
                     byte ESCAPE(0x7d) replaced for ESCAPE(0x7d) followed by 0x5d
 
@@ -483,31 +432,25 @@ int llread(int fd, unsigned char *packet){
 ////////////////////////////////////////////////
 // LLCLOSE
 ////////////////////////////////////////////////
-int llclose(int fd, int showStatistics, LinkLayer connectionParameters)
-{
+int llclose(int fd, int showStatistics, LinkLayer connectionParameters){
 
     if(connectionParameters.role == LlTx){
         printf("Entered llclose on transmitter\n");
         
-        // transmitter sends DISC and waits for DISC then sends UA
-        unsigned char disc_packet[5] = {0};
-        disc_packet[0] = FLAG;
-        disc_packet[1] = A_NORMAL;
-        disc_packet[2] = C_DISC;
-        disc_packet[3] = A_NORMAL ^ C_DISC;
-        disc_packet[4] = FLAG;
+        //transmitter sends DISC and waits for DISC then sends UA
+        unsigned char *disc_packet = get_disc_packet();
 
         enum LLState state = START;
         int attempts = 0;
         while(attempts < connectionParameters.nRetransmissions && state != STOP){
-            //print the attempt
-            printf("attempt: %d\n", attempts);
-            // send disc
+            printf("Attempt: %d\n", attempts);
+
+            //send disc packet
             if(write(fd, disc_packet, 5) < 0){
                 perror("write");
                 exit(-1);
             }
-            // activate alarm
+            //activate alarm
             alarmRing = FALSE;
             alarm(connectionParameters.timeout);
             
@@ -619,13 +562,7 @@ int llclose(int fd, int showStatistics, LinkLayer connectionParameters)
         printf("Transmitter received DISC from Receiver\n");
 
         //send UA
-        unsigned char ua_packet[5] = {0};
-        ua_packet[0] = FLAG;
-        ua_packet[1] = A_REVERSE;
-        ua_packet[2] = C_UA;
-        ua_packet[3] = A_REVERSE ^ C_UA;
-        ua_packet[4] = FLAG;
-
+        unsigned char *ua_packet = get_ua_packet_reverse();
         if(write(fd, ua_packet, 5) < 0){
             perror("write");
             exit(-1);
@@ -633,9 +570,8 @@ int llclose(int fd, int showStatistics, LinkLayer connectionParameters)
         printf("Transmitter sent UA\n");
     }
     else{
-        // receiver waits for DISC and sends DISC then waits for UA
         printf("Entered llclose on receiver\n");
-        // wait for fully process DISC
+        //receiver waits for DISC and sends DISC then waits for UA
         unsigned char byte;
         enum LLState state = START;
         while(state != STOP){
@@ -690,22 +626,17 @@ int llclose(int fd, int showStatistics, LinkLayer connectionParameters)
 
         printf("Receiver received DISC from Transmitter\n");
         // send DISC with timeout and retransmission mechanism waiting for UA
-        unsigned char disc_packet[5] = {0};
-        disc_packet[0] = FLAG;
-        disc_packet[1] = A_REVERSE;
-        disc_packet[2] = C_DISC;
-        disc_packet[3] = A_REVERSE ^ C_DISC;
-        disc_packet[4] = FLAG;
+        unsigned char *disc_packet = get_disc_packet_reverse();
 
         state = START;
         int attempts = 0;
         while(attempts < connectionParameters.nRetransmissions && state != STOP){
-            // send disc
+            //Send disc
             if(write(fd, disc_packet, 5) < 0){
                 perror("write");
                 exit(-1);
             }
-            // activate alarm
+
             alarmRing = FALSE;
             alarm(connectionParameters.timeout);
             
@@ -765,10 +696,23 @@ int llclose(int fd, int showStatistics, LinkLayer connectionParameters)
         printf("Receiver received UA from Transmitter\n");
     }
 
-    reset_old_termios(fd);
     printf("Connection closed\n");
+    reset_old_termios(fd);
     disable_alarm();
     return 1;
+}
+
+void alarmHandler(int signal){
+    printf("Alarm ringing!\n");
+    alarmRing = TRUE;
+}
+int enable_alarm(){
+    (void)signal(SIGALRM, alarmHandler);
+    return 0;
+}
+int disable_alarm(){
+    (void)signal(SIGALRM, SIG_IGN);
+    return 0;
 }
 
 void setup_new_termios(int fd, LinkLayer connectionParameters){
