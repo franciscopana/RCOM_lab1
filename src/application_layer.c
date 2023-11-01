@@ -41,9 +41,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
         //TODO-REFACTOR: This can be a function that return the file size and etc
 
-        //open file
         FILE *file = fopen(filename, "r");
-
         if(file == NULL){
             printf("File %s does not exist\n", filename);
             exit(1);
@@ -55,13 +53,12 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         fseek(file, 0, SEEK_SET);
         printf("File size: %ld\n", fileSize);
 
-        // build control packet start
-        // get the number of bytes to represent the file size
+        //get the number of bytes to represent the file size
         unsigned char L1 = sizeof(fileSize);
         unsigned char L2 = strlen(filename);
         unsigned int controlPacketSize = 5 + L1 + L2;
 
-        // build control packet
+        //creating start control packet
         unsigned char *startControlPacket = malloc(controlPacketSize);
         startControlPacket[0] = 0x02; // control field start
         startControlPacket[1] = 0x00; // control field end
@@ -72,16 +69,15 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         }
         startControlPacket[3 + L1] = 0x01;
         startControlPacket[4 + L1] = L2;
-        // Put filename on control packet
+        //copy filename to start control packet
         memcpy(startControlPacket + 5 + L1, filename, L2);
 
-        //read file
+        //read file to a buffer
         char *fileBuffer = malloc(fileSize);
         fread(fileBuffer, fileSize, 1, file);
         fclose(file);
 
-        //llwrite control packet
-        printf("controlPacketSize: %d\n", controlPacketSize);
+        //send start control packet
         if(llwrite(fd, startControlPacket, controlPacketSize, linkLayer) < 0){
             printf("Error sending packet\n");
             exit(1);
@@ -111,12 +107,12 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         }
         free(fileBuffer);
 
-        // build control packet end
+        //building control packet end by cloning start control packet
         unsigned char *endControlPacket = malloc(controlPacketSize);
         memcpy(endControlPacket, startControlPacket, controlPacketSize);
         endControlPacket[0] = 0x03; // control field end
 
-        //llwrite control packet
+        //send end control packet
         if(llwrite(fd, endControlPacket, controlPacketSize, linkLayer) < 0){
             printf("Error sending packet\n");
             exit(1);
@@ -201,7 +197,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                 exit(1);
             }
 
-            // packet: C - L2 - L1 - P1 ... Pk
+            // packet: [C | L2 | L1 | P1 | ... | Pk]
             // C = 0x01, L2L1 = k
 
             unsigned char L2 = packet[1];
@@ -209,17 +205,14 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             unsigned int k = (L2 << 8) | L1;
 
             printf("Data Package received\n");
-            // write to file
-            printf("bytesWritten1: %d\n", bytesWritten);
-            // append fwrite(packet + 3, k, 1, file + bytesWritten);
             fwrite(packet + 3, k, 1, file);
+            printf("BytesWritten1: %d\n", bytesWritten);
             bytesWritten += k;
             free(packet);
         }
-        printf("llclose\n");
         llclose(fd, 0, linkLayer);
 
-        //Free memory
+        //free memory
         free(newFilename);
         free(startCommandPacket);
         fclose(file);

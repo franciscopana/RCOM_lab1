@@ -260,7 +260,7 @@ int llopen(LinkLayer connectionParameters)
 ////////////////////////////////////////////////
 
 int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionParameters){
-
+    sleep(1);
     static int sequenceNumber = 0;
 
     int frameSize = bufSize + 6;
