@@ -10,11 +10,7 @@
 #define MAX_PAYLOAD 1000
 
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
-                      int nTries, int timeout, const char *filename)
-{
-
-    //TODO-REFACTOR: Function to create the linkLayer and move fd to LinkLayer
-
+                      int nTries, int timeout, const char *filename){
     LinkLayer linkLayer;
     strcpy(linkLayer.serialPort, serialPort);
     if(strcmp(role, "tx") == 0)
@@ -36,11 +32,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         exit(1);
     }
 
-    //TODO-REFACTOR: Switch to a switch
     // I am sending
     if(linkLayer.role == LlTx){
-
-        //TODO-REFACTOR: This can be a function that return the file size and etc
 
         FILE *file = fopen(filename, "r");
         if(file == NULL){
@@ -86,7 +79,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
         //loop buffer and send data packets
         long int bytesSent = 0;
-        //TODO: malloc can be here, so we don't have to malloc everytime
+        //IMPROVEMENT: malloc can be heres so we don't have to malloc everytime
         while(bytesSent < fileSize){
             unsigned long  bytesToSend = fileSize - bytesSent;
             if(bytesToSend > MAX_PAYLOAD){

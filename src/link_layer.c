@@ -34,14 +34,6 @@ int send_read_wait(int fd, unsigned char *packet, LinkLayer connectionParameters
 // MISC
 #define _POSIX_SOURCE 1 // POSIX compliant source
 
-// TODO-REFACTOR
-/* Generating packets file
-- RR0
-- RR1
-- REJ0
-- REJ1
-*/
-
 ////////////////////////////////////////////////
 // LLOPEN
 ////////////////////////////////////////////////

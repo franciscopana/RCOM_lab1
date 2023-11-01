@@ -11,16 +11,20 @@ BIN = bin/
 CABLE_DIR = cable/
 
 # Linux
-#TX_SERIAL_PORT = /dev/ttyS0
-#RX_SERIAL_PORT = /dev/ttyS0
+TX_SERIAL_PORT = /dev/ttyS0
+RX_SERIAL_PORT = /dev/ttyS0
 
 # MACOS
-TX_SERIAL_PORT = /dev/ttyS10
-RX_SERIAL_PORT = /dev/ttyS11
+#TX_SERIAL_PORT = /dev/ttyS10
+#RX_SERIAL_PORT = /dev/ttyS11
 
 # Pinguin
 TX_FILE = penguin.gif
 RX_FILE = penguin-received.gif
+
+# Sky
+#TX_FILE = sky.jpg
+#RX_FILE = sky-received.jpg
 
 # Cão
 #TX_FILE = cao.jpg
