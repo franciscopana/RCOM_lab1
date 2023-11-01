@@ -185,6 +185,7 @@ int llopen(LinkLayer connectionParameters){
 
         return fd;
     }
+    return -1;
 }
 
 ////////////////////////////////////////////////
@@ -195,7 +196,7 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
     static int sequenceNumber = 0;
 
     int frameSize = bufSize + 6;
-    unsigned char *frame = (unsigned char *) malloc(frame);
+    unsigned char *frame = (unsigned char *) malloc(frameSize);
     frame[0] = FLAG;
     frame[1] = A_NORMAL;
     frame[2] = sequenceNumber == 0 ? C_I0 : C_I1;
@@ -363,7 +364,6 @@ int llread(int fd, unsigned char *packet){
                         unsigned char bcc2 = packet[--packet_position];
                         packet[packet_position] = '\0';
                         
-                        int j = 0;
                         unsigned char xor = 0x00;
                         for(int j = 0; j < packet_position; j++){
                             xor ^= packet[j];
