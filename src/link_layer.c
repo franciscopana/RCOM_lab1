@@ -18,6 +18,10 @@
 int alarmRing = FALSE;
 struct termios oldtio;
 
+// Some private functions declarations
+void setup_new_termios(int fd, LinkLayer connectionParameters);
+void reset_old_termios(int fd);
+
 // Alarm function handler
 void alarmHandler(int signal){
     printf("Alarm ringing!\n");
@@ -55,44 +59,17 @@ int disable_alarm(){
 ////////////////////////////////////////////////
 // LLOPEN
 ////////////////////////////////////////////////
-int llopen(LinkLayer connectionParameters)
-{
+int llopen(LinkLayer connectionParameters){
     enable_alarm();
 
     // Open serial port
     int fd = open(connectionParameters.serialPort, O_RDWR | O_NOCTTY);
-
     if (fd < 0){
         perror(connectionParameters.serialPort);
         exit(-1);
     }
 
-    // TODO-REFACTOR: Move this to an independent function
-    struct termios newtio;
-
-    // Save current port settings
-    if (tcgetattr(fd, &oldtio) == -1){
-        perror("tcgetattr");
-        exit(-1);
-    }
-
-    // Clear struct for new port settings
-    memset(&newtio, 0, sizeof(newtio));
-
-    newtio.c_cflag = connectionParameters.baudRate | CS8 | CLOCAL | CREAD;
-    newtio.c_iflag = IGNPAR;
-    newtio.c_oflag = 0;
-    newtio.c_lflag = 0;
-    newtio.c_cc[VTIME] = 0; // Inter-character timer unused
-    newtio.c_cc[VMIN] = 0;  // Blocking read until 5 chars received
-    tcflush(fd, TCIOFLUSH);
-
-    // Set new port settings
-    if (tcsetattr(fd, TCSANOW, &newtio) == -1){
-        perror("tcsetattr");
-        exit(-1);
-    }
-    printf("New termios structure set\n");
+    setup_new_termios(fd, connectionParameters);
     
     //  transmitter sends SET and waits for UA using the retransmission mechanism    
     //  while attempt < MAX_ATTEMPTS
@@ -260,7 +237,6 @@ int llopen(LinkLayer connectionParameters)
 ////////////////////////////////////////////////
 
 int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionParameters){
-    sleep(1);
     static int sequenceNumber = 0;
 
     int frameSize = bufSize + 6;
@@ -789,14 +765,45 @@ int llclose(int fd, int showStatistics, LinkLayer connectionParameters)
         printf("Receiver received UA from Transmitter\n");
     }
 
-    // Restore things back
+    reset_old_termios(fd);
+    printf("Connection closed\n");
+    disable_alarm();
+    return 1;
+}
+
+void setup_new_termios(int fd, LinkLayer connectionParameters){
+    struct termios newtio;
+
+    // Save current port settings
+    if (tcgetattr(fd, &oldtio) == -1){
+        perror("tcgetattr");
+        exit(-1);
+    }
+
+    // Clear struct for new port settings
+    memset(&newtio, 0, sizeof(newtio));
+
+    newtio.c_cflag = connectionParameters.baudRate | CS8 | CLOCAL | CREAD;
+    newtio.c_iflag = IGNPAR;
+    newtio.c_oflag = 0;
+    newtio.c_lflag = 0;
+    newtio.c_cc[VTIME] = 0; // Inter-character timer unused
+    newtio.c_cc[VMIN] = 0;  // Blocking read until 5 chars received
+    tcflush(fd, TCIOFLUSH);
+
+    // Set new port settings
+    if (tcsetattr(fd, TCSANOW, &newtio) == -1){
+        perror("tcsetattr");
+        exit(-1);
+    }
+    printf("New termios structure set\n");
+}
+
+void reset_old_termios(int fd){
     if (tcsetattr(fd, TCSANOW, &oldtio) == -1){
         perror("tcsetattr");
         exit(-1);
     }
 
     close(fd);
-    printf("Connection closed\n");
-    disable_alarm();
-    return 1;
 }
