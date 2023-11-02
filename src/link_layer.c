@@ -471,59 +471,6 @@ int llclose(int fd, int showStatistics, LinkLayer connectionParameters){
             attempts++;
         }
         if(state != STOP) return -1;
-
-        // wait for fully process DISC from receiver
-        state = START;
-        char byte;
-        while(state != STOP){
-            if(read(fd, &byte, 1) < 0){
-                perror("read");
-                exit(-1);
-            }
-
-            switch(state){
-                case START:
-                    if(byte == FLAG){
-                        state = FLAG_RCV;
-                    }
-                    break;
-                case FLAG_RCV:
-                    if(byte == A_REVERSE){
-                        state = A_RCV;
-                    }else if(byte != FLAG){
-                        state = START;
-                    }
-                    break;
-                case A_RCV:
-                    if(byte == C_DISC){
-                        state = C_RCV;
-                    }else if(byte == FLAG){
-                        state = FLAG_RCV;
-                    }else{
-                        state = START;
-                    }
-                    break;
-                case C_RCV:
-                    if(byte == (A_REVERSE ^ C_DISC)){
-                        state = BCC_OK;
-                    }else if(byte == FLAG){
-                        state = FLAG_RCV;
-                    }else{
-                        state = START;
-                    }
-                    break;
-                case BCC_OK:
-                    if(byte == FLAG){
-                        state = STOP;
-                    }else{
-                        state = START;
-                    }
-                    break;
-                default:
-                    break;
-            }
-        }
-
         printf("Transmitter received DISC from Receiver\n");
 
         //send UA
