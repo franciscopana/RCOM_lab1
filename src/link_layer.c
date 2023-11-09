@@ -368,13 +368,16 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
                     break;
             }
         }
-        if(state == STOP && (ack == C_RR0 || ack == C_RR1)){
-            // if it's RR we must increment sequenceNumber (mod 2) and return bufSize
-            sequenceNumber = (sequenceNumber + 1) % 2;
-            return bufSize;
+        if(state == STOP) {
+            // if we have received a response we won't spend another attempt
+            if(ack == C_RR0 || ack == C_RR1){
+                // if it's RR we must increment sequenceNumber (mod 2) and return bufSize
+                sequenceNumber = (sequenceNumber + 1) % 2;
+                return bufSize;
+            }
         }
-        // otherwise we must send the packet again - we'll use one more attempt
-        attempts++;
+        // otherwise we must send the packet again, using one more attempt
+        else attempts++;
     }
     return -1;
 }
