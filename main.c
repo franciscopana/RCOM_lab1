@@ -6,7 +6,7 @@
 
 #include "application_layer.h"
 
-#define BAUDRATE 4000
+#define BAUDRATE 15000
 #define N_TRIES 3
 #define TIMEOUT 4
 
