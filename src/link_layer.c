@@ -101,6 +101,7 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
     int attempts = 0;
     while(attempts < connectionParameters.nRetransmissions){
         //Send packet
+        ussleep(10000);
         if(write(fd, frame, frameSize) < 0){
             perror("write");
             exit(-1);
