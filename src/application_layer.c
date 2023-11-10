@@ -9,7 +9,7 @@
 #include <time.h>
 
 
-#define MAX_PAYLOAD 5000
+#define MAX_PAYLOAD 2048
 
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
                       int nTries, int timeout, const char *filename){
