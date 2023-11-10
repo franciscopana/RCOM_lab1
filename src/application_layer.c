@@ -6,8 +6,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 
-#define MAX_PAYLOAD 1000
+
+#define MAX_PAYLOAD 5000
 
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
                       int nTries, int timeout, const char *filename){
@@ -119,6 +121,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     
     // I am receiving
     else{
+        clock_t start = clock();
+
         //create buffer
         unsigned char *startCommandPacket = malloc(MAX_PAYLOAD);
 
@@ -207,6 +211,10 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             bytesWritten += k;
             free(packet);
         }
+        clock_t end = clock();
+        double timeSpent = (double)(end - start) / CLOCKS_PER_SEC;
+        printf("Time spent: %f\n", timeSpent);
+
         llclose(fd, 0, linkLayer);
 
         //free memory

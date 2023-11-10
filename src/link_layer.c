@@ -78,6 +78,7 @@ int llopen(LinkLayer connectionParameters){
 ////////////////////////////////////////////////
 
 int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionParameters){
+
     static int sequenceNumber = 0;
 
     int frameSize = bufSize + 6;
@@ -96,6 +97,8 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
     // BCC2 Stuffing
     stuffing(frame, &frameSize, &i, BCC2);
     frame[i++] = FLAG;
+
+    sleep(1);
 
     int attempts = 0;
     while(attempts < connectionParameters.nRetransmissions){
