@@ -98,8 +98,6 @@ int llwrite(int fd, const unsigned char *buf, int bufSize, LinkLayer connectionP
     stuffing(frame, &frameSize, &i, BCC2);
     frame[i++] = FLAG;
 
-    sleep(1);
-
     int attempts = 0;
     while(attempts < connectionParameters.nRetransmissions){
         //Send packet
